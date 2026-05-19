@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server"
 
 import {
-  purchaseGame,
-  purchaseHints,
-  purchaseLives
-} from "@/lib/purchase"
+  completeGamePurchase,
+  completeHintPurchase,
+  completeRevivePurchase
+} from "@/lib/server-user-state"
 
 export async function POST(
   request: Request
@@ -13,21 +13,29 @@ export async function POST(
     const body =
       await request.json()
 
-      const action =
-          body.action
+    const action =
+      body.action
 
+    const walletAddress =
+      typeof body.walletAddress === "string"
+        ? body.walletAddress.trim()
+        : ""
 
-      const token =
-          body.token || "USDT"
+    if (!walletAddress) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Wallet missing"
+        },
+        {
+          status: 400
+        }
+      )
+    }
 
-    // =========================
-    // PURCHASE GAME
-    // =========================
-    if (
-      action === "game"
-    ) {
+    if (action === "game") {
       const result =
-          await purchaseGame(token)
+        await completeGamePurchase(walletAddress)
 
       return NextResponse.json({
         success: true,
@@ -35,45 +43,30 @@ export async function POST(
       })
     }
 
-    // =========================
-    // PURCHASE HINTS
-    // =========================
-    if (
-      action === "hints"
-    ) {
+    if (action === "hints") {
       const amount =
-        Number(
-          body.amount || 10
+        Number(body.amount || 5)
+
+      const result =
+        await completeHintPurchase(
+          walletAddress,
+          amount
         )
 
-      const result =
-          await purchaseHints(
-              amount,
-              token
-          )
-
       return NextResponse.json({
         success: true,
         result
       })
     }
 
-    // =========================
-    // PURCHASE LIVES
-    // =========================
     if (
+      action === "revive" ||
       action === "lives"
     ) {
-      const amount =
-        Number(
-          body.amount || 3
-        )
-
       const result =
-          await purchaseLives(
-              amount,
-              token
-          )
+        await completeRevivePurchase(
+          walletAddress
+        )
 
       return NextResponse.json({
         success: true,
@@ -84,8 +77,7 @@ export async function POST(
     return NextResponse.json(
       {
         success: false,
-        error:
-          "Unknown action"
+        error: "Unknown action"
       },
       {
         status: 400
