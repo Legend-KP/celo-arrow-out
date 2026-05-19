@@ -390,12 +390,6 @@ function normalizeMiniPayError(
     }
 
     if (
-        lower.includes("rate limit")
-    ) {
-        return "This wallet already used this payment recently. Please wait before paying again."
-    }
-
-    if (
         lower.includes("wallet not found") ||
         lower.includes("no wallet")
     ) {
