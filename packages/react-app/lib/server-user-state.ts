@@ -10,12 +10,14 @@ import type {
 import {
     readDb,
     writeDb,
-    deleteDb
+    deleteDb,
+    patchDb
 } from "./firebase-server"
 
 const DEFAULT_UNIVERSAL: UniversalProgress = {
-    weeklyChallengeCycleIndex: 0,
-    weeklyChallengeEndUnixMilliseconds: 0
+    weeklyChallengeCycleIndex: 1,
+    weeklyChallengeEndUnixMilliseconds: 0,
+    weeklyChallengePatternName: "Default"
 }
 
 const FREE_UNLOCK_HINT_REWARD = 5
@@ -24,6 +26,26 @@ function normalizeWalletAddress(
     walletAddress: string
 ) {
     return walletAddress.trim()
+}
+
+function getNextMondayUtcMs(
+    nowMs: number
+) {
+    const now = new Date(nowMs)
+    const currentDay = now.getUTCDay()
+    const daysUntilNextMonday =
+        (8 - currentDay) % 7 || 7
+
+    return Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate() +
+            daysUntilNextMonday,
+        0,
+        0,
+        0,
+        0
+    )
 }
 
 export function buildDefaultUserSnapshot(
@@ -147,27 +169,72 @@ export async function getUniversalSnapshot() {
             "universal/currentChallenge"
         )
 
+    const now = Date.now()
+    const nextWeekEndMs =
+        getNextMondayUtcMs(now)
+    const rawCycleIndex = Number(
+        snapshot?.weeklyChallengeCycleIndex ??
+            DEFAULT_UNIVERSAL.weeklyChallengeCycleIndex
+    )
+    const rawEndMs = Number(
+        snapshot?.weeklyChallengeEndUnixMilliseconds ??
+            DEFAULT_UNIVERSAL.weeklyChallengeEndUnixMilliseconds
+    )
+    const patternName =
+        typeof snapshot?.weeklyChallengePatternName ===
+            "string" &&
+        snapshot.weeklyChallengePatternName.trim()
+            ? snapshot.weeklyChallengePatternName.trim()
+            : DEFAULT_UNIVERSAL.weeklyChallengePatternName
+
+    const cycleIndex =
+        Number.isFinite(rawCycleIndex) &&
+        rawCycleIndex > 0 &&
+        rawCycleIndex < 1000000
+            ? rawCycleIndex
+            : 1
+    const endMsIsValid =
+        Number.isFinite(rawEndMs) &&
+        rawEndMs > now
+    const shouldRoll =
+        !snapshot || !endMsIsValid
+    const normalizedSnapshot = {
+        weeklyChallengeCycleIndex:
+            shouldRoll
+                ? Math.max(1, cycleIndex)
+                : cycleIndex,
+        weeklyChallengeEndUnixMilliseconds:
+            shouldRoll
+                ? nextWeekEndMs
+                : rawEndMs,
+        weeklyChallengePatternName:
+            patternName
+    }
+
     if (!snapshot) {
         await writeDb(
             "universal/currentChallenge",
-            DEFAULT_UNIVERSAL
+            normalizedSnapshot
         )
 
-        return DEFAULT_UNIVERSAL
+        return normalizedSnapshot
     }
 
-    return {
-        weeklyChallengeCycleIndex:
-            Number(
-                snapshot?.weeklyChallengeCycleIndex ??
-                DEFAULT_UNIVERSAL.weeklyChallengeCycleIndex
-            ),
-        weeklyChallengeEndUnixMilliseconds:
-            Number(
-                snapshot?.weeklyChallengeEndUnixMilliseconds ??
-                DEFAULT_UNIVERSAL.weeklyChallengeEndUnixMilliseconds
-            )
+    if (
+        shouldRoll ||
+        rawCycleIndex !== cycleIndex ||
+        rawEndMs !==
+            normalizedSnapshot.weeklyChallengeEndUnixMilliseconds ||
+        snapshot?.weeklyChallengePatternName !==
+            normalizedSnapshot.weeklyChallengePatternName
+    ) {
+        await patchDb(
+            "universal/currentChallenge",
+            normalizedSnapshot
+        )
     }
+
+    return normalizedSnapshot
 }
 
 export async function getOrCreateUserSnapshot(
@@ -228,6 +295,55 @@ export async function getOrCreateUserSnapshot(
     return user
 }
 
+export async function recordChallengePlay(
+    walletAddress: string,
+    completionSeconds: number
+) {
+    try {
+        const normalizedWallet =
+            normalizeWalletAddress(
+                walletAddress
+            )
+
+        if (
+            !normalizedWallet ||
+            !Number.isFinite(
+                completionSeconds
+            ) ||
+            completionSeconds <= 0
+        ) {
+            return
+        }
+
+        const user =
+            await getOrCreateUserSnapshot(
+                normalizedWallet as Address
+            )
+        const bestTimeSeconds = Number(
+            user.challenge
+                ?.bestTimeSeconds ?? -1
+        )
+        if (
+            bestTimeSeconds < 0 ||
+            completionSeconds <
+                bestTimeSeconds
+        ) {
+            await patchDb(
+                `users/${normalizedWallet}/challenge`,
+                {
+                    bestTimeSeconds:
+                        completionSeconds
+                }
+            )
+        }
+    } catch (error) {
+        console.error(
+            "recordChallengePlay non-fatal error",
+            error
+        )
+    }
+}
+
 export function sanitizeSnapshot(
     snapshot: UserSnapshot
 ): UserSnapshot {
@@ -278,13 +394,25 @@ export function sanitizeSnapshot(
         universal: {
             weeklyChallengeCycleIndex:
                 Number(
-                    snapshot.universal?.weeklyChallengeCycleIndex || 0
+                    snapshot.universal?.weeklyChallengeCycleIndex ||
+                    DEFAULT_UNIVERSAL.weeklyChallengeCycleIndex
                 ),
             weeklyChallengeEndUnixMilliseconds:
                 Number(
                     snapshot.universal?.weeklyChallengeEndUnixMilliseconds ||
-                    0
-                )
+                    DEFAULT_UNIVERSAL.weeklyChallengeEndUnixMilliseconds
+                ),
+            weeklyChallengePatternName:
+                typeof snapshot.universal
+                    ?.weeklyChallengePatternName ===
+                    "string" &&
+                snapshot.universal
+                    .weeklyChallengePatternName
+                    .trim()
+                    ? snapshot.universal
+                          .weeklyChallengePatternName
+                          .trim()
+                    : DEFAULT_UNIVERSAL.weeklyChallengePatternName
         }
     }
 }

@@ -1,4 +1,4 @@
-﻿﻿"use client"
+﻿"use client"
 
 import {
     useEffect,
@@ -528,14 +528,56 @@ export default function GameClient() {
                 )
             }
 
+            const apiEntries = Array.isArray(
+                response.entries
+            )
+                ? response.entries
+                : []
+
+            console.log(
+                "[Leaderboard] apiEntries count:",
+                apiEntries.length
+            )
+
+            const bridgePayload = {
+                entries: apiEntries,
+                leaderboard: apiEntries,
+                leaderboardEntries:
+                    apiEntries,
+                result: {
+                    entries: apiEntries
+                },
+                playerRank:
+                    response.playerRank,
+                cycleIndex:
+                    response.cycleIndex,
+                patternName:
+                    response.patternName,
+                version:
+                    response.version,
+                updatedAt:
+                    response.updatedAt
+            }
+            const message =
+                JSON.stringify(
+                    bridgePayload
+                )
+
             sendToUnity(
                 "OnChallengeLeaderboardReceived",
-                JSON.stringify({
-                    entries:
-                        response.entries,
-                    playerRank:
-                        response.playerRank
-                })
+                message
+            )
+            sendToUnity(
+                "OnLeaderboardReceived",
+                message
+            )
+            sendToUnity(
+                "OnLeaderboardDataReceived",
+                message
+            )
+            sendToUnity(
+                "OnChallengeLeaderboardRowsReceived",
+                message
             )
         } catch (error: any) {
             sendToUnity(

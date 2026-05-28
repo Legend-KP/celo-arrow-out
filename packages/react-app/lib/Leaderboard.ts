@@ -24,6 +24,15 @@ interface StoredLeaderboardEntry {
     updatedAt: number
 }
 
+interface LeaderboardMeta {
+    cycleIndex: number
+    patternName: string
+    version: number
+    updatedAt: number
+}
+
+const LEADERBOARD_VERSION = 1
+
 function normalizeWalletAddress(
     walletAddress: string
 ) {
@@ -57,16 +66,28 @@ function isMatchingCycle(
     cycleIndex: number,
     patternName: string
 ) {
+    const metaCycleIndex = Number(
+        state?.leaderboardMeta?.cycleIndex ?? -1
+    )
+    const metaPatternName = normalizePatternName(
+        String(
+            state?.leaderboardMeta?.patternName ||
+                ""
+        )
+    )
+
     return (
-        Number(
+        (metaCycleIndex === cycleIndex &&
+            metaPatternName === patternName) ||
+        (Number(
             state?.leaderboardCycleIndex ?? -1
         ) === cycleIndex &&
-        normalizePatternName(
-            String(
-                state?.leaderboardPatternName ||
-                ""
-            )
-        ) === patternName
+            normalizePatternName(
+                String(
+                    state?.leaderboardPatternName ||
+                        ""
+                )
+            ) === patternName)
     )
 }
 
@@ -145,6 +166,48 @@ function mapToSortedEntries(
             )
         })
     )
+}
+
+function readRawLeaderboardTop25(
+    state: any
+) {
+    return (
+        state?.leaderboardTop25 ||
+        state?.leaderboard ||
+        {}
+    ) as Record<
+        string,
+        StoredLeaderboardEntry
+    >
+}
+
+function resolveLeaderboardMeta(
+    state: any,
+    cycleIndex: number,
+    patternName: string
+): LeaderboardMeta {
+    return {
+        cycleIndex: Number(
+            state?.leaderboardMeta?.cycleIndex ??
+                state?.leaderboardCycleIndex ??
+                cycleIndex
+        ),
+        patternName: normalizePatternName(
+            String(
+                state?.leaderboardMeta
+                    ?.patternName ||
+                    state?.leaderboardPatternName ||
+                    patternName
+            )
+        ),
+        version: Number(
+            state?.leaderboardMeta?.version ??
+                LEADERBOARD_VERSION
+        ),
+        updatedAt: Number(
+            state?.leaderboardMeta?.updatedAt || 0
+        )
+    }
 }
 
 function toStoredLeaderboard(
@@ -236,7 +299,9 @@ export async function submitChallengeScore(
             normalizedPatternName
         )
             ? mapToSortedEntries(
-                  state?.leaderboard
+                  readRawLeaderboardTop25(
+                      state
+                  )
               )
             : []
 
@@ -252,10 +317,24 @@ export async function submitChallengeScore(
         existingEntry.completionSeconds <=
             safeCompletionSeconds
     ) {
+        const currentMeta =
+            resolveLeaderboardMeta(
+                state,
+                cycleIndex,
+                normalizedPatternName
+            )
+
         return {
             success: true,
             improved: false,
             entries: currentEntries,
+            cycleIndex:
+                currentMeta.cycleIndex,
+            patternName:
+                currentMeta.patternName,
+            version: currentMeta.version,
+            updatedAt:
+                currentMeta.updatedAt,
             playerRank:
                 existingEntry.rank <=
                 MAX_LEADERBOARD_ENTRIES
@@ -290,19 +369,27 @@ export async function submitChallengeScore(
             MAX_LEADERBOARD_ENTRIES
         )
 
-    await patchDb(
-        CURRENT_CHALLENGE_PATH,
-        {
-            leaderboardCycleIndex:
-                cycleIndex,
-            leaderboardPatternName:
+    const updatedAt = Date.now()
+    await patchDb(CURRENT_CHALLENGE_PATH, {
+        leaderboardCycleIndex: cycleIndex,
+        leaderboardPatternName:
+            normalizedPatternName,
+        leaderboardMeta: {
+            cycleIndex,
+            patternName:
                 normalizedPatternName,
-            leaderboard:
-                toStoredLeaderboard(
-                    trimmedEntries
-                )
-        }
-    )
+            version: LEADERBOARD_VERSION,
+            updatedAt
+        },
+        leaderboardTop25:
+            toStoredLeaderboard(
+                trimmedEntries
+            ),
+        leaderboard:
+            toStoredLeaderboard(
+                trimmedEntries
+            )
+    })
 
     const playerRank =
         trimmedEntries.findIndex(
@@ -315,6 +402,10 @@ export async function submitChallengeScore(
         success: true,
         improved: true,
         entries: trimmedEntries,
+        cycleIndex,
+        patternName: normalizedPatternName,
+        version: LEADERBOARD_VERSION,
+        updatedAt,
         playerRank:
             playerRank > 0
                 ? playerRank
@@ -350,13 +441,24 @@ export async function getChallengeLeaderboard(
     ) {
         return {
             entries: [],
-            playerRank: -1
+            playerRank: -1,
+            cycleIndex,
+            patternName:
+                normalizedPatternName,
+            version: LEADERBOARD_VERSION,
+            updatedAt: 0
         }
     }
 
     const entries = mapToSortedEntries(
-        state?.leaderboard
+        readRawLeaderboardTop25(state)
     ).slice(0, safeLimit)
+    const meta =
+        resolveLeaderboardMeta(
+            state,
+            cycleIndex,
+            normalizedPatternName
+        )
     const normalizedPlayerWallet =
         normalizeWalletAddress(
             playerWallet || ""
@@ -373,6 +475,10 @@ export async function getChallengeLeaderboard(
 
     return {
         entries,
+        cycleIndex: meta.cycleIndex,
+        patternName: meta.patternName,
+        version: meta.version,
+        updatedAt: meta.updatedAt,
         playerRank:
             playerRank > 0
                 ? playerRank

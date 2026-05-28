@@ -4,24 +4,9 @@ import {
     submitChallengeScore,
     getChallengeLeaderboard
 } from "@/lib/Leaderboard"
+import { recordChallengePlay } from "@/lib/server-user-state"
 
 const MAX_LEADERBOARD_ENTRIES = 25
-
-function clampLimit(
-    value: unknown
-) {
-    const numericValue = Number(
-        value
-    )
-
-    if (!Number.isFinite(numericValue))
-        return MAX_LEADERBOARD_ENTRIES
-
-    return Math.min(
-        MAX_LEADERBOARD_ENTRIES,
-        Math.max(1, Math.floor(numericValue))
-    )
-}
 
 export async function POST(
     request: Request
@@ -71,6 +56,11 @@ export async function POST(
                     completionSeconds
                 )
 
+            void recordChallengePlay(
+                walletAddress,
+                completionSeconds
+            )
+
             return NextResponse.json({
                 success: true,
                 result
@@ -84,9 +74,6 @@ export async function POST(
             const patternName =
                 body.patternName ||
                 "Unknown"
-            const limit = clampLimit(
-                body.limit
-            )
             const playerWallet =
                 body.walletAddress
 
@@ -94,16 +81,33 @@ export async function POST(
                 await getChallengeLeaderboard(
                     cycleIndex,
                     patternName,
-                    limit,
+                    MAX_LEADERBOARD_ENTRIES,
                     playerWallet
                 )
 
             return NextResponse.json({
                 success: true,
-                entries:
-                    leaderboard.entries,
+                entries: leaderboard.entries.map(
+                    entry => ({
+                        rank: entry.rank,
+                        playerName:
+                            entry.playerName,
+                        walletAddress:
+                            entry.walletAddress,
+                        completionSeconds:
+                            entry.completionSeconds
+                    })
+                ),
                 playerRank:
-                    leaderboard.playerRank
+                    leaderboard.playerRank,
+                cycleIndex:
+                    leaderboard.cycleIndex,
+                patternName:
+                    leaderboard.patternName,
+                version:
+                    leaderboard.version,
+                updatedAt:
+                    leaderboard.updatedAt
             })
         }
 
