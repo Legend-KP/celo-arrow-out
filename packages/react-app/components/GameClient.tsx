@@ -597,7 +597,7 @@ export default function GameClient() {
             }}
         >
             <iframe
-                src="https://arrowoutb1.trenchverse.com/index.html"
+                src="https://arrowoutmp.trenchverse.com/index.html"
                 style={{
                     width: "100%",
                     height: "100%",
