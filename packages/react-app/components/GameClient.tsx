@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import {
     useEffect,
@@ -212,21 +212,45 @@ export default function GameClient() {
         )
     }
 
-    function getPaymentFailureKind(
-        error: unknown
+    function extractPaymentErrorMessage(
+        error: unknown,
+        fallback = "Payment failed. Please try again."
     ) {
         const message =
             error instanceof Error
                 ? error.message
-                : String(
-                    error ||
-                    "Payment failed"
-                )
+                : String(error || "")
 
+        const trimmed =
+            message.trim()
+
+        if (
+            !trimmed ||
+            trimmed === "..."
+        ) {
+            return fallback
+        }
+
+        return trimmed
+    }
+
+    function getPaymentFailureKind(
+        error: unknown
+    ) {
+        const rawMessage =
+            error instanceof Error
+                ? error.message
+                : String(error || "")
+        const message =
+            extractPaymentErrorMessage(error)
+        const rawTrimmed =
+            rawMessage.trim()
         const lower =
             message.toLowerCase()
 
         if (
+            !rawTrimmed ||
+            rawTrimmed === "..." ||
             lower.includes("cancel") ||
             lower.includes("rejected") ||
             lower.includes("denied") ||
@@ -236,14 +260,10 @@ export default function GameClient() {
             lower.includes("transaction failed") ||
             lower.includes("rate limit") ||
             lower.includes("rpc") ||
-            lower.includes("rpc request") ||
-            lower === "..." ||
-            !message.trim()
+            lower.includes("rpc request")
         ) {
             return {
-                message:
-                    message ||
-                    "Payment failed. Please try again.",
+                message,
                 shouldShowFailedPanel: true
             }
         }
@@ -425,8 +445,10 @@ export default function GameClient() {
 
             sendToUnity(
                 "OnHintPurchaseFailed",
-                error?.message ||
-                "Hint purchase failed"
+                extractPaymentErrorMessage(
+                    error,
+                    "Hint purchase failed. Please try again."
+                )
             )
         }
     }
@@ -490,8 +512,10 @@ export default function GameClient() {
             }
 
             const message =
-                error?.message ||
-                "Revive purchase failed"
+                extractPaymentErrorMessage(
+                    error,
+                    "Revive purchase failed. Please try again."
+                )
 
             sendToUnity(
                 "OnRevivePurchaseFailed",
