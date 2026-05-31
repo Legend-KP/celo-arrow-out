@@ -19,7 +19,8 @@ import {
 
 import {
     getEntryPaymentStatus,
-    runMiniPayPayment
+    runMiniPayPayment,
+    isPaymentCancelled
 } from "@/lib/purchase"
 
 declare global {
@@ -408,6 +409,14 @@ export default function GameClient() {
                 response.result?.snapshot || ""
             )
         } catch (error: any) {
+            if (isPaymentCancelled(error)) {
+                sendToUnity(
+                    "OnHintPurchaseCancelled",
+                    ""
+                )
+                return
+            }
+
             sendToUnity(
                 "OnHintPurchaseFailed",
                 error?.message ||
@@ -462,6 +471,18 @@ export default function GameClient() {
                 snapshotPayload
             )
         } catch (error: any) {
+            if (isPaymentCancelled(error)) {
+                sendToUnity(
+                    "OnRevivePurchaseCancelled",
+                    ""
+                )
+                sendToUnity(
+                    "OnLivesPurchaseCancelled",
+                    ""
+                )
+                return
+            }
+
             const message =
                 error?.message ||
                 "Revive purchase failed"

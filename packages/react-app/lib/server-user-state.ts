@@ -14,11 +14,21 @@ import {
     patchDb
 } from "./firebase-server"
 
-const DEFAULT_UNIVERSAL: UniversalProgress = {
-    weeklyChallengeCycleIndex: 1,
-    weeklyChallengeEndUnixMilliseconds: 0,
-    weeklyChallengePatternName: "Default"
-}
+import {
+    DEFAULT_WEEKLY_CHALLENGE,
+    LEADERBOARD_CLEAR_PATCH,
+    applyUniversalToDbState,
+    computeWeeklyChallenge,
+    readStoredUniversal,
+    shouldClearLeaderboard,
+    universalChallengeMatches
+} from "./weekly-challenge"
+
+const DEFAULT_UNIVERSAL: UniversalProgress =
+    DEFAULT_WEEKLY_CHALLENGE
+
+const CURRENT_CHALLENGE_PATH =
+    "universal/currentChallenge"
 
 const FREE_UNLOCK_HINT_REWARD = 5
 
@@ -26,26 +36,6 @@ function normalizeWalletAddress(
     walletAddress: string
 ) {
     return walletAddress.trim()
-}
-
-function getNextMondayUtcMs(
-    nowMs: number
-) {
-    const now = new Date(nowMs)
-    const currentDay = now.getUTCDay()
-    const daysUntilNextMonday =
-        (8 - currentDay) % 7 || 7
-
-    return Date.UTC(
-        now.getUTCFullYear(),
-        now.getUTCMonth(),
-        now.getUTCDate() +
-            daysUntilNextMonday,
-        0,
-        0,
-        0,
-        0
-    )
 }
 
 export function buildDefaultUserSnapshot(
@@ -163,78 +153,72 @@ export function mergeSnapshot(
     }
 }
 
-export async function getUniversalSnapshot() {
+export async function getCurrentChallengeDbState(
+    nowMs = Date.now()
+) {
+    const computed =
+        computeWeeklyChallenge(nowMs)
     const snapshot =
         await readDb<any>(
-            "universal/currentChallenge"
+            CURRENT_CHALLENGE_PATH
         )
-
-    const now = Date.now()
-    const nextWeekEndMs =
-        getNextMondayUtcMs(now)
-    const rawCycleIndex = Number(
-        snapshot?.weeklyChallengeCycleIndex ??
-            DEFAULT_UNIVERSAL.weeklyChallengeCycleIndex
-    )
-    const rawEndMs = Number(
-        snapshot?.weeklyChallengeEndUnixMilliseconds ??
-            DEFAULT_UNIVERSAL.weeklyChallengeEndUnixMilliseconds
-    )
-    const patternName =
-        typeof snapshot?.weeklyChallengePatternName ===
-            "string" &&
-        snapshot.weeklyChallengePatternName.trim()
-            ? snapshot.weeklyChallengePatternName.trim()
-            : DEFAULT_UNIVERSAL.weeklyChallengePatternName
-
-    const cycleIndex =
-        Number.isFinite(rawCycleIndex) &&
-        rawCycleIndex > 0 &&
-        rawCycleIndex < 1000000
-            ? rawCycleIndex
-            : 1
-    const endMsIsValid =
-        Number.isFinite(rawEndMs) &&
-        rawEndMs > now
-    const shouldRoll =
-        !snapshot || !endMsIsValid
-    const normalizedSnapshot = {
-        weeklyChallengeCycleIndex:
-            shouldRoll
-                ? Math.max(1, cycleIndex)
-                : cycleIndex,
-        weeklyChallengeEndUnixMilliseconds:
-            shouldRoll
-                ? nextWeekEndMs
-                : rawEndMs,
-        weeklyChallengePatternName:
-            patternName
-    }
+    const stored =
+        readStoredUniversal(snapshot)
 
     if (!snapshot) {
         await writeDb(
-            "universal/currentChallenge",
-            normalizedSnapshot
+            CURRENT_CHALLENGE_PATH,
+            computed
         )
 
-        return normalizedSnapshot
+        return {
+            universal: computed,
+            dbState: { ...computed }
+        }
     }
 
-    if (
-        shouldRoll ||
-        rawCycleIndex !== cycleIndex ||
-        rawEndMs !==
-            normalizedSnapshot.weeklyChallengeEndUnixMilliseconds ||
-        snapshot?.weeklyChallengePatternName !==
-            normalizedSnapshot.weeklyChallengePatternName
-    ) {
+    const clearLeaderboard =
+        shouldClearLeaderboard(
+            stored,
+            computed
+        )
+    const needsUpdate =
+        !universalChallengeMatches(
+            stored,
+            computed
+        )
+
+    if (needsUpdate || clearLeaderboard) {
         await patchDb(
-            "universal/currentChallenge",
-            normalizedSnapshot
+            CURRENT_CHALLENGE_PATH,
+            {
+                ...computed,
+                ...(clearLeaderboard
+                    ? LEADERBOARD_CLEAR_PATCH
+                    : {})
+            }
         )
     }
 
-    return normalizedSnapshot
+    return {
+        universal: computed,
+        dbState: applyUniversalToDbState(
+            snapshot,
+            computed,
+            clearLeaderboard
+        )
+    }
+}
+
+export async function getUniversalSnapshot(
+    nowMs = Date.now()
+) {
+    const { universal } =
+        await getCurrentChallengeDbState(
+            nowMs
+        )
+
+    return universal
 }
 
 export async function getOrCreateUserSnapshot(

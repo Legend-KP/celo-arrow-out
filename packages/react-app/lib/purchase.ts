@@ -405,6 +405,24 @@ function normalizeMiniPayError(
     return rawMessage
 }
 
+export function isPaymentCancelled(
+    error: unknown
+) {
+    const message =
+        error instanceof Error
+            ? error.message
+            : String(error || "")
+
+    const lower =
+        message.toLowerCase()
+
+    return (
+        lower.includes("cancel") ||
+        lower.includes("user rejected") ||
+        lower.includes("user denied")
+    )
+}
+
 async function waitForTransaction(
     txHash: string
 ) {

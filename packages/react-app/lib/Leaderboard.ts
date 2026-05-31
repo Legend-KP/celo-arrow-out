@@ -1,9 +1,12 @@
 import "server-only"
 
 import {
-    patchDb,
-    readDb
+    patchDb
 } from "./firebase-server"
+
+import {
+    getCurrentChallengeDbState
+} from "./server-user-state"
 
 const CURRENT_CHALLENGE_PATH =
     "universal/currentChallenge"
@@ -251,17 +254,21 @@ function toStoredLeaderboard(
 export async function submitChallengeScore(
     walletAddress: string,
     playerName: string,
-    cycleIndex: number,
-    patternName: string,
+    _cycleIndex: number,
+    _patternName: string,
     completionSeconds: number
 ) {
     const normalizedWallet =
         normalizeWalletAddress(
             walletAddress
         )
+    const { universal, dbState: state } =
+        await getCurrentChallengeDbState()
+    const cycleIndex =
+        universal.weeklyChallengeCycleIndex
     const normalizedPatternName =
         normalizePatternName(
-            patternName
+            universal.weeklyChallengePatternName
         )
     const safePlayerName =
         typeof playerName === "string" &&
@@ -287,10 +294,6 @@ export async function submitChallengeScore(
             "Completion time is invalid"
         )
     }
-
-    const state = await readDb<any>(
-        CURRENT_CHALLENGE_PATH
-    )
 
     const currentEntries =
         isMatchingCycle(
@@ -371,9 +374,6 @@ export async function submitChallengeScore(
 
     const updatedAt = Date.now()
     await patchDb(CURRENT_CHALLENGE_PATH, {
-        leaderboardCycleIndex: cycleIndex,
-        leaderboardPatternName:
-            normalizedPatternName,
         leaderboardMeta: {
             cycleIndex,
             patternName:
@@ -382,10 +382,6 @@ export async function submitChallengeScore(
             updatedAt
         },
         leaderboardTop25:
-            toStoredLeaderboard(
-                trimmedEntries
-            ),
-        leaderboard:
             toStoredLeaderboard(
                 trimmedEntries
             )
@@ -414,21 +410,22 @@ export async function submitChallengeScore(
 }
 
 export async function getChallengeLeaderboard(
-    cycleIndex: number,
-    patternName: string,
+    _cycleIndex: number,
+    _patternName: string,
     limit: number =
         MAX_LEADERBOARD_ENTRIES,
     playerWallet?: string
 ) {
+    const { universal, dbState: state } =
+        await getCurrentChallengeDbState()
+    const cycleIndex =
+        universal.weeklyChallengeCycleIndex
     const normalizedPatternName =
         normalizePatternName(
-            patternName
+            universal.weeklyChallengePatternName
         )
     const safeLimit = clampLimit(
         limit
-    )
-    const state = await readDb<any>(
-        CURRENT_CHALLENGE_PATH
     )
 
     if (
