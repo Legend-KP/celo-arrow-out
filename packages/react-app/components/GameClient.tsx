@@ -166,14 +166,32 @@ export default function GameClient() {
         ) {
             try {
                 const paymentStatus =
-                    await getEntryPaymentStatus(
-                        wallet as `0x${string}`
-                    )
+                    await Promise.race([
+                        getEntryPaymentStatus(
+                            wallet as `0x${string}`
+                        ),
+                        new Promise<
+                            never
+                        >((_, reject) =>
+                            setTimeout(
+                                () =>
+                                    reject(
+                                        new Error(
+                                            "RPC timeout"
+                                        )
+                                    ),
+                                5000
+                            )
+                        )
+                    ])
 
                 if (
-                    paymentStatus.payCount > BigInt(0) ||
-                    paymentStatus.payCountUSDT > BigInt(0) ||
-                    paymentStatus.payCountUSDC > BigInt(0)
+                    paymentStatus.payCount >
+                        BigInt(0) ||
+                    paymentStatus.payCountUSDT >
+                        BigInt(0) ||
+                    paymentStatus.payCountUSDC >
+                        BigInt(0)
                 ) {
                     const recovered =
                         await apiPost(
@@ -199,8 +217,8 @@ export default function GameClient() {
                     }
                 }
             } catch (error) {
-                console.error(
-                    "Bootstrap purchase reconciliation failed",
+                console.warn(
+                    "Payment status check skipped:",
                     error
                 )
             }
@@ -419,6 +437,10 @@ export default function GameClient() {
                 sendToUnity(
                     "OnHintPurchaseCancelled",
                     ""
+                )
+                sendToUnity(
+                    "OnHintPurchaseFailed",
+                    "cancelled"
                 )
                 return
             }
