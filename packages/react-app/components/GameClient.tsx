@@ -234,10 +234,16 @@ export default function GameClient() {
             lower.includes("transaction timeout") ||
             lower.includes("execution reverted") ||
             lower.includes("transaction failed") ||
-            lower.includes("rate limit")
+            lower.includes("rate limit") ||
+            lower.includes("rpc") ||
+            lower.includes("rpc request") ||
+            lower === "..." ||
+            !message.trim()
         ) {
             return {
-                message,
+                message:
+                    message ||
+                    "Payment failed. Please try again.",
                 shouldShowFailedPanel: true
             }
         }
