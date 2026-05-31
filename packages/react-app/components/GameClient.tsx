@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import {
     useEffect,
@@ -166,32 +166,14 @@ export default function GameClient() {
         ) {
             try {
                 const paymentStatus =
-                    await Promise.race([
-                        getEntryPaymentStatus(
-                            wallet as `0x${string}`
-                        ),
-                        new Promise<
-                            never
-                        >((_, reject) =>
-                            setTimeout(
-                                () =>
-                                    reject(
-                                        new Error(
-                                            "RPC timeout"
-                                        )
-                                    ),
-                                5000
-                            )
-                        )
-                    ])
+                    await getEntryPaymentStatus(
+                        wallet as `0x${string}`
+                    )
 
                 if (
-                    paymentStatus.payCount >
-                        BigInt(0) ||
-                    paymentStatus.payCountUSDT >
-                        BigInt(0) ||
-                    paymentStatus.payCountUSDC >
-                        BigInt(0)
+                    paymentStatus.payCount > BigInt(0) ||
+                    paymentStatus.payCountUSDT > BigInt(0) ||
+                    paymentStatus.payCountUSDC > BigInt(0)
                 ) {
                     const recovered =
                         await apiPost(
@@ -217,8 +199,8 @@ export default function GameClient() {
                     }
                 }
             } catch (error) {
-                console.warn(
-                    "Payment status check skipped:",
+                console.error(
+                    "Bootstrap purchase reconciliation failed",
                     error
                 )
             }
@@ -437,10 +419,6 @@ export default function GameClient() {
                 sendToUnity(
                     "OnHintPurchaseCancelled",
                     ""
-                )
-                sendToUnity(
-                    "OnHintPurchaseFailed",
-                    "cancelled"
                 )
                 return
             }
