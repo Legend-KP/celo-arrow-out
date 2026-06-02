@@ -331,10 +331,9 @@ export async function submitChallengeScore(
             success: true,
             improved: false,
             entries: currentEntries,
-            cycleIndex:
-                currentMeta.cycleIndex,
+            cycleIndex,
             patternName:
-                currentMeta.patternName,
+                normalizedPatternName,
             version: currentMeta.version,
             updatedAt:
                 currentMeta.updatedAt,
@@ -472,8 +471,8 @@ export async function getChallengeLeaderboard(
 
     return {
         entries,
-        cycleIndex: meta.cycleIndex,
-        patternName: meta.patternName,
+        cycleIndex,
+        patternName: normalizedPatternName,
         version: meta.version,
         updatedAt: meta.updatedAt,
         playerRank:

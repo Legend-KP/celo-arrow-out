@@ -15,6 +15,10 @@ import {
 } from "./firebase-server"
 
 import {
+    archiveChallengeLeaderboardIfNeeded
+} from "./challenge-history"
+
+import {
     DEFAULT_WEEKLY_CHALLENGE,
     LEADERBOARD_CLEAR_PATCH,
     applyUniversalToDbState,
@@ -187,6 +191,20 @@ export async function getCurrentChallengeDbState(
             stored,
             computed
         )
+
+    if (clearLeaderboard && stored) {
+        try {
+            await archiveChallengeLeaderboardIfNeeded(
+                snapshot,
+                stored
+            )
+        } catch (error) {
+            console.error(
+                "Challenge history archive failed",
+                error
+            )
+        }
+    }
 
     if (needsUpdate || clearLeaderboard) {
         await patchDb(
