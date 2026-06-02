@@ -437,8 +437,8 @@ export default function GameClient() {
         } catch (error: any) {
             if (isPaymentCancelled(error)) {
                 sendToUnity(
-                    "OnHintPurchaseCancelled",
-                    ""
+                    "OnHintPurchaseFailed",
+                    "Payment was cancelled."
                 )
                 return
             }
@@ -501,12 +501,12 @@ export default function GameClient() {
         } catch (error: any) {
             if (isPaymentCancelled(error)) {
                 sendToUnity(
-                    "OnRevivePurchaseCancelled",
-                    ""
+                    "OnRevivePurchaseFailed",
+                    "Payment was cancelled."
                 )
                 sendToUnity(
-                    "OnLivesPurchaseCancelled",
-                    ""
+                    "OnLivesPurchaseFailed",
+                    "Payment was cancelled."
                 )
                 return
             }
