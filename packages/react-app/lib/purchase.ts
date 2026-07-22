@@ -50,19 +50,19 @@ const CONTRACTS: Record<PurchaseKind, Address> = {
             .NEXT_PUBLIC_CLASSIC_REVIVE_PURCHASE_CONTRACT ||
         process.env
             .NEXT_PUBLIC_REVIVE_PURCHASE_CONTRACT ||
-        "0xdb159C58b43A94DFfdfc7814A8D329D26C5D7e8d"
+        "0x69c9faF5C9b3A9227c2e1E5312a261103b99933F"
     ) as Address,
     reviveChallenge: (
         process.env
             .NEXT_PUBLIC_CHALLENGE_REVIVE_PURCHASE_CONTRACT ||
         process.env
             .NEXT_PUBLIC_REVIVE_PURCHASE_CONTRACT ||
-        "0xdb159C58b43A94DFfdfc7814A8D329D26C5D7e8d"
+        "0x69c9faF5C9b3A9227c2e1E5312a261103b99933F"
     ) as Address,
     revive: (
         process.env
             .NEXT_PUBLIC_REVIVE_PURCHASE_CONTRACT ||
-        "0xdb159C58b43A94DFfdfc7814A8D329D26C5D7e8d"
+        "0x69c9faF5C9b3A9227c2e1E5312a261103b99933F"
     ) as Address
 }
 
@@ -359,6 +359,51 @@ function extractErrorMessage(
         : "Payment failed"
 }
 
+function getErrorCode(
+    error: unknown
+): number | null {
+    if (
+        error === null ||
+        error === undefined ||
+        typeof error !== "object"
+    ) {
+        return null
+    }
+
+    const record =
+        error as Record<string, unknown>
+
+    if (
+        typeof record.code === "number"
+    ) {
+        return record.code
+    }
+
+    if (
+        typeof record.code === "string" &&
+        record.code.trim() !== "" &&
+        !Number.isNaN(Number(record.code))
+    ) {
+        return Number(record.code)
+    }
+
+    if (
+        "error" in record &&
+        record.error
+    ) {
+        return getErrorCode(record.error)
+    }
+
+    if (
+        "cause" in record &&
+        record.cause
+    ) {
+        return getErrorCode(record.cause)
+    }
+
+    return null
+}
+
 function normalizeMiniPayError(
     error: unknown
 ) {
@@ -368,10 +413,16 @@ function normalizeMiniPayError(
     const lower =
         rawMessage.toLowerCase()
 
+    const code = getErrorCode(error)
+
+    // MiniPay / JSON-RPC: -32604 = permission denied (user rejected)
     if (
+        code === -32604 ||
+        lower.includes("permission denied") ||
         lower.includes("user rejected") ||
         lower.includes("user denied") ||
-        lower.includes("cancel")
+        lower.includes("cancel") ||
+        lower.includes("code -32604")
     ) {
         return "Payment was cancelled."
     }
@@ -408,18 +459,27 @@ function normalizeMiniPayError(
 export function isPaymentCancelled(
     error: unknown
 ) {
+    const code = getErrorCode(error)
+
+    if (code === -32604) {
+        return true
+    }
+
     const message =
         error instanceof Error
             ? error.message
-            : String(error || "")
+            : extractErrorMessage(error)
 
     const lower =
         message.toLowerCase()
 
     return (
         lower.includes("cancel") ||
+        lower.includes("permission denied") ||
         lower.includes("user rejected") ||
-        lower.includes("user denied")
+        lower.includes("user denied") ||
+        lower.includes("code -32604") ||
+        lower.includes("-32604")
     )
 }
 
