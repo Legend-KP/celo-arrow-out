@@ -38,7 +38,7 @@ const CONTRACTS: Record<PurchaseKind, Address> = {
     entry: (
         process.env
             .NEXT_PUBLIC_GAME_ENTRY_CONTRACT ||
-        "0x0CCba85476Fbd345fd3aD672004DA27083727151"
+        "0xDB299682F6568AD0193A7D37621a2eB474Ca7499"
     ) as Address,
     hint: (
         process.env
@@ -179,6 +179,17 @@ const PAYMENT_CONFIG_ABI = [
         outputs: [
             {
                 type: "address"
+            }
+        ]
+    },
+    {
+        name: "fee",
+        type: "function",
+        stateMutability: "view",
+        inputs: [],
+        outputs: [
+            {
+                type: "uint256"
             }
         ]
     },
@@ -770,12 +781,22 @@ async function getPaymentConfig(
                 "USDT"
             )
 
-    const fee =
-        await readUint256Call(
+    let fee: bigint
+
+    try {
+        fee = await readUint256Call(
+            contractAddress,
+            PAYMENT_CONFIG_ABI,
+            "fee"
+        )
+    } catch {
+        // Older hint/revive contracts expose FEE instead of fee.
+        fee = await readUint256Call(
             contractAddress,
             PAYMENT_CONFIG_ABI,
             "FEE"
         )
+    }
 
     return {
         contractAddress,
