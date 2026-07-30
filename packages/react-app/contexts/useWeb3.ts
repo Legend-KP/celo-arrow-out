@@ -11,6 +11,7 @@ import {
     stringToHex,
 } from "viem";
 import { celoAlfajores } from "viem/chains";
+import { APP_ATTRIBUTION_SUFFIX } from "@/lib/attribution";
 
 const publicClient = createPublicClient({
     chain: celoAlfajores,
@@ -51,6 +52,7 @@ export const useWeb3 = () => {
             functionName: "transfer",
             account: address,
             args: [to, amountInWei],
+            dataSuffix: APP_ATTRIBUTION_SUFFIX,
         });
 
         let receipt = await publicClient.waitForTransactionReceipt({
@@ -77,6 +79,7 @@ export const useWeb3 = () => {
                 address,
                 "https://cdn-production-opera-website.operacdn.com/staticfiles/assets/images/sections/2023/hero-top/products/minipay/minipay__desktop@2x.a17626ddb042.webp",
             ],
+            dataSuffix: APP_ATTRIBUTION_SUFFIX,
         });
 
         const receipt = await publicClient.waitForTransactionReceipt({

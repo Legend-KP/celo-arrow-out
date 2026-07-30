@@ -9,6 +9,9 @@ import {
     ensureCeloNetwork,
     getEthereum
 } from "./wallet"
+import {
+    appendAttributionSuffix
+} from "./attribution"
 
 export type PaymentToken =
     | "USDT"
@@ -750,7 +753,9 @@ async function approveIfNeeded(
                 {
                     from: wallet,
                     to: tokenContract,
-                    data: approveData
+                    data: appendAttributionSuffix(
+                        approveData
+                    )
                 }
             ]
         })
@@ -917,11 +922,13 @@ async function sendPayment(
                     {
                         from: wallet,
                         to: paymentConfig.contractAddress,
-                        data: encodeFunctionData({
-                            abi: PAYMENT_ABI,
-                            functionName,
-                            args: []
-                        }),
+                        data: appendAttributionSuffix(
+                            encodeFunctionData({
+                                abi: PAYMENT_ABI,
+                                functionName,
+                                args: []
+                            })
+                        ),
                         value: "0x0"
                     }
                 ]
