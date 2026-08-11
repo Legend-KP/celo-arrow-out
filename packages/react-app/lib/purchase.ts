@@ -910,9 +910,19 @@ async function sendPayment(
                 ? "payWithUSDC"
                 : "payWithUSDT"
 
+        const paymentData =
+            appendAttributionSuffix(
+                encodeFunctionData({
+                    abi: PAYMENT_ABI,
+                    functionName,
+                    args: []
+                })
+            )
+
         console.log(
             "[MiniPay] Opening payment popup",
-            functionName
+            functionName,
+            { dataLength: paymentData.length }
         )
 
         const tx =
@@ -922,13 +932,7 @@ async function sendPayment(
                     {
                         from: wallet,
                         to: paymentConfig.contractAddress,
-                        data: appendAttributionSuffix(
-                            encodeFunctionData({
-                                abi: PAYMENT_ABI,
-                                functionName,
-                                args: []
-                            })
-                        ),
+                        data: paymentData,
                         value: "0x0"
                     }
                 ]
